@@ -3,11 +3,15 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const User = require('./models/User');
+const Place = require('./models/Place');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const cookieParser = require('cookie-parser')
 const imageDownloader = require('image-downloader')
 const multer = require('multer');
+const fs = require('fs')
+const path = require('path');
+
 
 const app = express();
 
@@ -27,6 +31,7 @@ app.use(cors({
 app.use(express.json());
 app.use(cookieParser());
 app.use('/uploads', express.static(__dirname+'/uploads'))
+
 
 
 mongoose.connect(process.env.DB_MONGO_URI)
@@ -127,14 +132,46 @@ if (link.startsWith('http:') || link.startsWith('https:')) {
 })
 
 
-const photoMiddleware = multer({dest:'uploads'})
+const photoMiddleware = multer({dest:'uploads/'})
 
-app.post('/upload', photoMiddleware.array('photos' , 100), (req, res) => {
-    console.log(req.files);
+app.post('/upload', photoMiddleware.array('photos', 100), (req, res) => {
+    
+    const uploadedFiles = [];
 
-res.json(req.files)
+    for (i = 0; i < req.files.length; i++){
+        const { path, originalname } = req.files[i];
+        const parts = originalname.split('.');
+        const ext = parts[parts.length - 1];
+        const newPath = path + '.' + ext;
+        fs.renameSync(path, newPath);
+        uploadedFiles.push(newPath.replace('uploads/',''));
+    }
+    res.json(uploadedFiles);
+})
+
+app.post('/places', async(req, res) => {
+    const { token } = req.cookies;
+    const { title, address, addedPhotos,
+        description, perks, extraInfo, checkIn,
+        checkOut,maxGuests,
+    
+    } = req.body
+
+    jwt.verify(token, jwtSecretKey, async (err, user) => {
+        if (err) throw err;
+        const placeDocument = await Place.create({
+            owner: user.id,
+            title, address, addedPhotos,
+            description, perks, extraInfo, checkIn,
+            checkOut, maxGuests,
+        });
+        
+        res.json(placeDocument)
+    });
 
 })
+
+
 
 
 
